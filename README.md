@@ -101,6 +101,149 @@ Once Sunshine is running, use [Moonlight](https://moonlight-stream.org/) on your
 2. Pair with the host using the PIN displayed in Sunshine's web UI
 3. Start streaming
 
+## Setting Up Moonlight Client on macOS
+
+### Installation
+
+1. **Download Moonlight for macOS**
+
+   Visit [moonlight-stream.org](https://moonlight-stream.org/) and download the macOS version, or download directly from GitHub:
+
+   ```bash
+   # Download the latest macOS release
+   # Visit: https://github.com/moonlight-stream/moonlight-qt/releases
+   ```
+
+   Alternatively, install via Homebrew:
+   ```bash
+   brew install --cask moonlight
+   ```
+
+2. **Install the Application**
+
+   - Open the downloaded `.dmg` file
+   - Drag Moonlight to your Applications folder
+   - Launch Moonlight from Applications
+
+### Pairing with Sunshine
+
+#### Method 1: Automatic Discovery (Recommended)
+
+1. **Open Moonlight** on your Mac
+
+2. **Automatic Discovery**
+
+   Moonlight will automatically scan your local network for Sunshine hosts. Your DGX SPARK should appear in the list with its hostname or IP address.
+
+3. **Click on the DGX SPARK host** to initiate pairing
+
+4. **Enter the PIN**
+
+   Moonlight will display a 4-digit PIN code. You need to enter this PIN in the Sunshine web interface.
+
+#### Method 2: Manual Pairing via Sunshine Web UI
+
+1. **Find your DGX SPARK IP address**
+
+   On the DGX SPARK, run:
+   ```bash
+   hostname -I
+   ```
+
+   Or for Tailscale IP:
+   ```bash
+   tailscale ip -4
+   ```
+
+2. **Access Sunshine Web UI**
+
+   Open a web browser on your Mac and navigate to:
+   ```
+   https://<DGX-IP>:47990/
+   ```
+
+   For example:
+   ```
+   https://100.77.88.110:47990/
+   ```
+
+   **Note:** You'll get a security warning because Sunshine uses a self-signed certificate. Click "Advanced" and proceed to the site.
+
+3. **Set up Sunshine credentials** (first time only)
+
+   If this is your first time accessing the web UI, you'll be prompted to create a username and password.
+
+4. **Navigate to the PIN page**
+
+   Go to:
+   ```
+   https://<DGX-IP>:47990/pin
+   ```
+
+   For example:
+   ```
+   https://100.77.88.110:47990/pin
+   ```
+
+5. **Enter the Moonlight PIN**
+
+   When you try to connect from Moonlight, it will display a 4-digit PIN. Enter this PIN in the Sunshine web UI and click "Send".
+
+6. **Pairing Complete**
+
+   Once paired, your Mac will be authorized to stream from the DGX SPARK.
+
+### Connecting and Streaming
+
+1. **Launch Moonlight** on your Mac
+
+2. **Select the DGX SPARK** from the list of hosts
+
+3. **Choose an application** to stream:
+   - **Desktop** - Streams the full Ubuntu desktop
+   - Other applications configured in Sunshine
+
+4. **Stream Settings** (optional)
+
+   Before connecting, you can adjust stream quality:
+   - Click the settings icon in Moonlight
+   - Configure resolution (up to 4K)
+   - Set frame rate (30/60/120 fps)
+   - Adjust bitrate for your network
+
+5. **Start Streaming**
+
+   Click on "Desktop" or your desired application to begin streaming.
+
+### Keyboard Shortcuts
+
+While streaming:
+- **Ctrl+Alt+Shift+Q** - Quit the stream
+- **Ctrl+Alt+Shift+M** - Toggle mouse capture
+- **Ctrl+Alt+Shift+D** - Show debug overlay
+
+### Troubleshooting
+
+#### Can't Find DGX SPARK Host
+
+- Ensure both devices are on the same network
+- Check if Sunshine is running: `ps aux | grep sunshine`
+- Verify firewall isn't blocking ports 47984-47990
+- Try manual connection by clicking "+" and entering the IP address
+
+#### Connection Refused
+
+- Verify Sunshine web UI is accessible: `https://<DGX-IP>:47990/`
+- Check Sunshine logs: `journalctl --user -u sunshine -f`
+- Ensure virtual display is configured: `xrandr`
+
+#### Poor Performance
+
+- Lower the streaming resolution in Moonlight settings
+- Reduce bitrate if on WiFi
+- Use wired Ethernet connection for best performance
+- Check network latency with: `ping <DGX-IP>`
+
 ## Files
 
 - **`configure_headless_sunshine.sh`** - Main configuration script that automates the entire setup process
