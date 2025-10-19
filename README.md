@@ -1,12 +1,13 @@
-# DGX SPARK Headless Sunshine Setup
+# DGX SPARK Remote Virtual Desktop with Headless Sunshine Setup
 
 ![DGX SPARK](https://assets.ngc.nvidia.com/products/api-catalog/spark/dgx-spark-hero.jpg)
 
-Automated setup for headless remote desktop streaming on NVIDIA DGX SPARK systems using [Sunshine](https://github.com/LizardByte/Sunshine).
+Dont have a display and want to use your DGX SPARK In its native Desktop Environment? 
+This repo provides an Automated setup for headless remote desktop streaming on NVIDIA DGX SPARK systems using [Sunshine](https://github.com/LizardByte/Sunshine) and a moonshine client.
 
 ## Overview
 
-This repository provides a complete, automated solution for configuring NVIDIA DGX SPARK workstations for headless remote desktop access via Sunshine streaming. It's designed for systems running Ubuntu 24.04 ARM64 with NVIDIA Blackwell (GB10) GPUs.
+This repository provides a complete, automated solution for configuring NVIDIA DGX SPARK workstations for headless native remote desktop access via Sunshine streaming. It's designed for systems running Ubuntu 24.04 ARM64 with NVIDIA Blackwell (GB10) GPUs.
 
 ### What This Does
 
