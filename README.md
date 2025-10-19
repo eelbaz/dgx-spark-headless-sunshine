@@ -1,0 +1,282 @@
+# DGX SPARK Headless Sunshine Setup
+
+Automated setup for headless remote desktop streaming on NVIDIA DGX SPARK systems using [Sunshine](https://github.com/LizardByte/Sunshine).
+
+## Overview
+
+This repository provides a complete, automated solution for configuring NVIDIA DGX SPARK workstations for headless remote desktop access via Sunshine streaming. It's designed for systems running Ubuntu 24.04 ARM64 with NVIDIA Blackwell (GB10) GPUs.
+
+### What This Does
+
+- Installs Sunshine streaming server and all dependencies
+- Configures NVIDIA DRM modesetting for proper GPU access
+- Sets up virtual display support for headless operation
+- Configures GDM and X11 for automatic login and display initialization
+- Enables NVENC hardware encoding for efficient video streaming
+
+### Use Cases
+
+- Remote access to DGX SPARK workstations without physical displays
+- GPU-accelerated desktop streaming for AI/ML development
+- Remote visualization and CUDA application testing
+- Headless compute nodes that occasionally need desktop access
+
+## Requirements
+
+- NVIDIA DGX SPARK system
+- Ubuntu 24.04 LTS (ARM64)
+- NVIDIA GB10 (Blackwell) GPU
+- NVIDIA drivers installed
+- Root/sudo access
+
+## Quick Start
+
+### 1. Clone this repository
+
+```bash
+git clone https://github.com/eelbaz/dgx-spark-headless-sunshine.git
+cd dgx-spark-headless-sunshine
+```
+
+### 2. Run the configuration script
+
+```bash
+sudo ./configure_headless_sunshine.sh
+```
+
+The script will:
+- Download and install Sunshine (v2025.1014.193231)
+- Install all required system dependencies
+- Configure GRUB kernel parameters for NVIDIA DRM modesetting
+- Set up Xorg with virtual display support
+- Configure GDM for X11 and autologin
+- Create autostart entries for display initialization and Sunshine
+
+### 3. Verify the configuration
+
+```bash
+# Check Sunshine was installed
+which sunshine
+sunshine --version
+
+# Check GRUB was updated
+grep nvidia-drm /etc/default/grub
+
+# Verify Xorg configuration
+ls -la /etc/X11/xorg.conf*
+
+# Check GDM configuration
+grep -A 4 "[daemon]" /etc/gdm3/custom.conf
+```
+
+### 4. Reboot
+
+```bash
+sudo reboot
+```
+
+### 5. Verify operation after reboot
+
+```bash
+# Check kernel parameter is active
+cat /proc/cmdline | grep nvidia-drm.modeset
+
+# Verify modeset enabled (should output: Y)
+cat /sys/module/nvidia_drm/parameters/modeset
+
+# Check if Sunshine is running
+ps aux | grep sunshine
+
+# Monitor Sunshine logs
+journalctl --user -u sunshine -f
+```
+
+### 6. Connect with Moonlight
+
+Once Sunshine is running, use [Moonlight](https://moonlight-stream.org/) on your client device to:
+1. Discover the DGX SPARK host on your network
+2. Pair with the host using the PIN displayed in Sunshine's web UI
+3. Start streaming
+
+## Files
+
+- **`configure_headless_sunshine.sh`** - Main configuration script that automates the entire setup process
+- **`sunshine_setup_journal.md`** - Detailed documentation of the configuration process, troubleshooting, and technical details
+
+## Configuration Details
+
+### GRUB Kernel Parameters
+
+The script adds these kernel parameters to enable proper GPU access:
+- `nvidia-drm.modeset=1` - Enables DRM modesetting for NVIDIA
+- `nvidia.NVreg_UsePageAttributeTable=1` - Performance optimization
+
+### Xorg Configuration
+
+Virtual display configured as:
+- Output: HDMI-0
+- Resolution: 1600x900 (customizable)
+- Virtual heads: 1
+- Connected monitor: DFP-0
+- Coolbits: 28 (enables GPU fan control)
+
+### GDM Configuration
+
+- Wayland: Disabled
+- Default session: gnome-xorg.desktop
+- Autologin: Enabled for the user who ran the script
+
+### Autostart Entry
+
+Automatically runs on login:
+```bash
+/usr/bin/xrandr --output HDMI-0 --mode 1600x900
+```
+
+Launches Sunshine with proper environment variables if not already running.
+
+## Troubleshooting
+
+### Sunshine fails to find display
+
+**Symptoms:**
+```
+Error: GPU driver doesn't support universal planes: /dev/dri/card1
+Error: Couldn't find monitor
+Fatal: Unable to find display or encoder during startup
+```
+
+**Solution:**
+1. Verify DRM modeset is enabled:
+   ```bash
+   cat /sys/module/nvidia_drm/parameters/modeset
+   ```
+   Should output: `Y`
+
+2. Check if virtual display is active:
+   ```bash
+   xrandr
+   ```
+   Should show HDMI-0 at 1600x900
+
+3. Verify Xorg is running (not Wayland):
+   ```bash
+   echo $XDG_SESSION_TYPE
+   ```
+   Should output: `x11`
+
+### NVENC initialization fails
+
+Check NVIDIA driver and GPU status:
+```bash
+nvidia-smi
+cat /proc/driver/nvidia/version
+```
+
+### Autostart doesn't launch Sunshine
+
+Check the autostart entry:
+```bash
+cat ~/.config/autostart/headless-xrandr.desktop
+```
+
+Check system logs:
+```bash
+journalctl --user -u sunshine -n 50
+```
+
+## Rollback
+
+If you need to revert the changes:
+
+```bash
+# Restore original xorg.conf
+sudo cp /etc/X11/xorg.conf.backup-before-sunshine /etc/X11/xorg.conf
+
+# Remove kernel parameters from GRUB
+sudo nano /etc/default/grub
+# Remove: nvidia-drm.modeset=1 nvidia.NVreg_UsePageAttributeTable=1
+sudo update-grub
+
+# Disable autologin in GDM (optional)
+sudo nano /etc/gdm3/custom.conf
+# Set: AutomaticLoginEnable=false
+
+# Reboot
+sudo reboot
+```
+
+## Technical Background
+
+### Why DRM Modesetting?
+
+NVIDIA's DRM (Direct Rendering Manager) modesetting is required for:
+- Proper virtual display support
+- KMS (Kernel Mode Setting) functionality
+- Compatibility with modern display management
+- Hardware encoder access without physical displays
+
+### Why Virtual Displays?
+
+Physical displays are not always available on compute-focused DGX systems. Virtual displays allow:
+- Desktop environment initialization
+- GPU-accelerated rendering
+- Hardware video encoding via NVENC
+- Remote streaming via Sunshine/Moonlight
+
+## Performance
+
+Sunshine uses NVIDIA NVENC for hardware-accelerated H.264/H.265 encoding:
+- Minimal CPU overhead
+- Low latency streaming (typically <50ms on local network)
+- Up to 4K 120fps capable (depends on network bandwidth)
+- Supports HDR with compatible clients
+
+## Security Considerations
+
+### Autologin
+
+The script enables autologin for convenience. If this is a security concern:
+1. Edit `/etc/gdm3/custom.conf`
+2. Set `AutomaticLoginEnable=false`
+3. Restart GDM: `sudo systemctl restart gdm3`
+
+### Sunshine Access
+
+Sunshine requires pairing with client devices. Access is controlled by:
+- PIN-based pairing process
+- HTTPS for web UI (if configured)
+- Network isolation (only accessible on local network by default)
+
+For additional security, configure firewall rules to restrict Sunshine ports (47984-47990).
+
+## Contributing
+
+Issues, improvements, and pull requests are welcome! If you encounter problems specific to:
+- Different DGX models
+- Different GPU generations
+- Different Ubuntu versions
+
+Please open an issue with full system details.
+
+## License
+
+MIT License - See LICENSE file for details
+
+## Acknowledgments
+
+- [LizardByte/Sunshine](https://github.com/LizardByte/Sunshine) - Game streaming server
+- [moonlight-stream](https://moonlight-stream.org/) - Client application
+- NVIDIA DGX documentation and community
+
+## Resources
+
+- [Sunshine Documentation](https://docs.lizardbyte.dev/projects/sunshine/)
+- [Moonlight Downloads](https://moonlight-stream.org/)
+- [NVIDIA DRM Modesetting Guide](https://download.nvidia.com/XFree86/Linux-x86_64/latest/README/kms.html)
+
+---
+
+**Repository:** https://github.com/eelbaz/dgx-spark-headless-sunshine
+**Tested on:** DGX SPARK with NVIDIA GB10 (Blackwell), Ubuntu 24.04 ARM64
+**Last Updated:** 2025-10-19
