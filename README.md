@@ -1,5 +1,7 @@
 # DGX SPARK Headless Sunshine Setup
 
+![DGX SPARK](https://assets.ngc.nvidia.com/products/api-catalog/spark/dgx-spark-hero.jpg)
+
 Automated setup for headless remote desktop streaming on NVIDIA DGX SPARK systems using [Sunshine](https://github.com/LizardByte/Sunshine).
 
 ## Overview
