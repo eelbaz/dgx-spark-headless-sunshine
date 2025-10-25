@@ -94,11 +94,29 @@ ps aux | grep sunshine
 journalctl --user -u sunshine -f
 ```
 
-### 6. Connect with Moonlight
+### 6. Access Sunshine Web UI
 
-Once Sunshine is running, use [Moonlight](https://moonlight-stream.org/) on your client device to:
+After reboot, access the Sunshine web interface to configure and pair:
+
+```
+https://<hostname>.local:47990/
+```
+
+For example:
+```
+https://spark-alpha.local:47990/
+```
+
+**IMPORTANT:**
+- Use **HTTPS** (not HTTP) - Sunshine only accepts HTTPS connections
+- Accept the self-signed certificate warning in your browser
+- On first access, you'll be prompted to create a username and password
+
+### 7. Connect with Moonlight
+
+Once Sunshine is configured, use [Moonlight](https://moonlight-stream.org/) on your client device to:
 1. Discover the DGX SPARK host on your network
-2. Pair with the host using the PIN displayed in Sunshine's web UI
+2. Pair with the host using the PIN from `https://<hostname>:47990/pin`
 3. Start streaming
 
 ## Setting Up Moonlight Client on macOS
@@ -167,7 +185,15 @@ Once Sunshine is running, use [Moonlight](https://moonlight-stream.org/) on your
    https://100.77.88.110:47990/
    ```
 
-   **Note:** You'll get a security warning because Sunshine uses a self-signed certificate. Click "Advanced" and proceed to the site.
+   Or use the hostname:
+   ```
+   https://spark-alpha.local:47990/
+   ```
+
+   **IMPORTANT:**
+   - Use **HTTPS** (not HTTP) - Sunshine only accepts HTTPS connections
+   - You'll get a security warning because Sunshine uses a self-signed certificate
+   - Click "Advanced" → "Proceed to site" (Chrome) or "Show Details" → "Visit this website" (Safari)
 
 3. **Set up Sunshine credentials** (first time only)
 

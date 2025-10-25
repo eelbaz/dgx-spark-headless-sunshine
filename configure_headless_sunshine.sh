@@ -271,7 +271,10 @@ main() {
 Configuration complete. Next steps:
   1. Reboot the system so the new GRUB command line and Xorg configuration take effect.
   2. Allow the autologin session to initialize; the GNOME autostart entry will set the 1600x900 mode and launch Sunshine.
-  3. Pair Moonlight with this host once Sunshine is running.
+  3. Access Sunshine Web UI at: https://$(hostname):47990/ or https://$(hostname -I | awk '{print $1}'):47990/
+     IMPORTANT: Use HTTPS (not HTTP) - you will need to accept the self-signed certificate warning.
+  4. Set up your Sunshine username and password on first access.
+  5. Pair Moonlight with this host using the PIN from https://$(hostname):47990/pin
 
 Note: Automatic login is enabled for user "${TARGET_USER}". Adjust /etc/gdm3/custom.conf if you need different credentials.
 EOM
