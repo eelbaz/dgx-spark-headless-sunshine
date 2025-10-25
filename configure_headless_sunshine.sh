@@ -28,7 +28,6 @@ determine_target_user() {
 }
 
 install_sunshine() {
-  local sunshine_url="https://github.com/LizardByte/Sunshine/releases/download/v2025.1014.193231/sunshine-ubuntu-24.04-arm64.deb"
   local deb_file="/tmp/sunshine-ubuntu-24.04-arm64.deb"
 
   # Check if Sunshine is already installed
@@ -38,6 +37,19 @@ install_sunshine() {
   fi
 
   echo "Installing Sunshine streaming software..."
+
+  # Fetch the latest release version from GitHub API (including pre-releases)
+  echo "Fetching latest Sunshine release information..."
+  local latest_tag
+  latest_tag=$(curl -s "https://api.github.com/repos/LizardByte/Sunshine/releases" | grep '"tag_name"' | head -1 | cut -d'"' -f4)
+
+  if [[ -z "${latest_tag}" ]]; then
+    echo "Failed to fetch latest Sunshine release information." >&2
+    exit 1
+  fi
+
+  echo "Latest Sunshine release: ${latest_tag}"
+  local sunshine_url="https://github.com/LizardByte/Sunshine/releases/download/${latest_tag}/sunshine-ubuntu-24.04-arm64.deb"
 
   # Download Sunshine package
   echo "Downloading Sunshine from ${sunshine_url}..."
