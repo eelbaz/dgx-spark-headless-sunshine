@@ -93,7 +93,7 @@ sunshine --version
 
 ### Configuration Location
 - Configuration files: `~/.config/sunshine/`
-- Logs: Check with `journalctl --user -u sunshine`
+- Logs: `~/.config/sunshine/sunshine.log`
 
 **Note:** Sunshine should NOT be started yet - it requires the display configuration completed by the script below.
 
@@ -179,7 +179,7 @@ cat /sys/module/nvidia_drm/parameters/modeset
 ps aux | grep sunshine
 
 # Monitor Sunshine logs
-journalctl --user -u sunshine -f
+tail -f ~/.config/sunshine/sunshine.log
 
 # Test from terminal (should work now)
 sunshine

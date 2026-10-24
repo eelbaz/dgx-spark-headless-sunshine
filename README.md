@@ -91,7 +91,7 @@ cat /sys/module/nvidia_drm/parameters/modeset
 ps aux | grep sunshine
 
 # Monitor Sunshine logs
-journalctl --user -u sunshine -f
+tail -f ~/.config/sunshine/sunshine.log
 ```
 
 ### 6. Access Sunshine Web UI
@@ -260,7 +260,7 @@ While streaming:
 #### Connection Refused
 
 - Verify Sunshine web UI is accessible: `https://<DGX-IP>:47990/`
-- Check Sunshine logs: `journalctl --user -u sunshine -f`
+- Check Sunshine logs: `tail -f ~/.config/sunshine/sunshine.log`
 - Ensure virtual display is configured: `xrandr`
 
 #### Poor Performance
@@ -362,9 +362,10 @@ Check the autostart entry:
 cat ~/.config/autostart/headless-xrandr.desktop
 ```
 
-Check system logs:
+Check Sunshine's own log, and the session journal for output from the autostart entry:
 ```bash
-journalctl --user -u sunshine -n 50
+tail -n 50 ~/.config/sunshine/sunshine.log
+journalctl --user -b | grep -i sunshine
 ```
 
 ## Rollback
