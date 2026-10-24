@@ -179,35 +179,39 @@ EOF
 }
 
 configure_gdm() {
-  AUTOLOGIN_USER="${TARGET_USER}" python3 - <<'PY'
+  local gdm_path="/etc/gdm3/custom.conf"
+  if [[ -f "${gdm_path}" && ! -f "${gdm_path}.backup-before-sunshine" ]]; then
+    cp "${gdm_path}" "${gdm_path}.backup-before-sunshine"
+  fi
+
+  GDM_FILE="${gdm_path}" AUTOLOGIN_USER="${TARGET_USER}" python3 - <<'PY'
+import os, re
 from pathlib import Path
-from configparser import ConfigParser
-import os
 
-path = Path("/etc/gdm3/custom.conf")
-parser = ConfigParser(strict=False, allow_no_value=True)
-parser.optionxform = str  # Preserve option casing expected by GDM
-parser.read(path)
+path = Path(os.environ["GDM_FILE"])
+lines = path.read_text().splitlines() if path.exists() else []
+settings = {
+    "WaylandEnable": "false",
+    "DefaultSession": "gnome-xorg.desktop",
+    "AutomaticLoginEnable": "true",
+    "AutomaticLogin": os.environ["AUTOLOGIN_USER"],
+}
+managed = {key.lower() for key in settings}
 
-if "daemon" not in parser:
-    parser["daemon"] = {}
+# Edit the [daemon] section line by line so comments and other sections are kept
+# (ConfigParser would drop every comment in the file when writing it back).
+header = next((i for i, line in enumerate(lines) if line.strip().lower() == "[daemon]"), None)
+if header is None:
+    lines += ["", "[daemon]"] if lines else ["[daemon]"]
+    header = len(lines) - 1
 
-daemon = parser["daemon"]
-for key in list(daemon.keys()):
-    if key.lower() in {
-        "waylandenable",
-        "defaultsession",
-        "automaticloginenable",
-        "automaticlogin",
-    }:
-        daemon.pop(key)
-daemon["WaylandEnable"] = "false"
-daemon["DefaultSession"] = "gnome-xorg.desktop"
-daemon["AutomaticLoginEnable"] = "true"
-daemon["AutomaticLogin"] = os.environ["AUTOLOGIN_USER"]
-
-with path.open("w") as fh:
-    parser.write(fh, space_around_delimiters=False)
+end = next((i for i in range(header + 1, len(lines)) if re.match(r"^\s*\[.*\]\s*$", lines[i])), len(lines))
+body = [
+    line for line in lines[header + 1:end]
+    if line.lstrip().startswith(("#", ";")) or line.split("=", 1)[0].strip().lower() not in managed
+]
+lines[header + 1:end] = [f"{key}={value}" for key, value in settings.items()] + body
+path.write_text("\n".join(lines) + "\n")
 PY
 
   echo "Configured GDM for Xorg and autologin (user ${TARGET_USER})."
