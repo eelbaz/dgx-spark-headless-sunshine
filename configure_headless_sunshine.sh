@@ -122,21 +122,49 @@ configure_sunshine() {
     install -d -m 700 -o "${TARGET_USER}" -g "${TARGET_USER}" "${config_dir}"
   fi
 
-  # Without an explicit capture method Sunshine also probes the xdg-desktop-portal
-  # ScreenCast backend, which on GNOME waits for someone to answer a screen-sharing
-  # dialog on the headless display, hanging startup before the web UI comes up.
-  if [[ -f "${config_file}" ]] && grep -qE '^[[:space:]]*capture[[:space:]]*=' "${config_file}"; then
-    echo "Leaving the existing capture setting in ${config_file} unchanged."
-    return 0
-  fi
-
+  touch "${config_file}"
   if [[ -s "${config_file}" && -n "$(tail -c 1 "${config_file}")" ]]; then
     echo >> "${config_file}"
   fi
-  echo "capture = x11" >> "${config_file}"
-  chown "${TARGET_USER}:${TARGET_USER}" "${config_file}"
 
-  echo "Set Sunshine capture method to x11 in ${config_file}."
+  # Without an explicit capture method Sunshine also probes the xdg-desktop-portal
+  # ScreenCast backend, which on GNOME waits for someone to answer a screen-sharing
+  # dialog on the headless display, hanging startup before the web UI comes up.
+  if grep -qE '^[[:space:]]*capture[[:space:]]*=' "${config_file}"; then
+    echo "Leaving the existing capture setting in ${config_file} unchanged."
+  else
+    echo "capture = x11" >> "${config_file}"
+    echo "Set Sunshine capture method to x11 in ${config_file}."
+  fi
+
+  # The web UI's CSRF protection only trusts localhost origins by default, which blocks
+  # logging in from another machine. Allow this host's names and current addresses,
+  # keeping any origins already configured.
+  # Browsers send the hostname in lowercase, and Sunshine matches origins case-sensitively.
+  local web_ui_port=47990 host
+  host="$(hostname)"
+  host="${host,,}"
+  local -a wanted=("https://${host}:${web_ui_port}" "https://${host}.local:${web_ui_port}")
+  local addr origin merged
+  for addr in $(hostname -I); do
+    if [[ "${addr}" == *:* ]]; then
+      wanted+=("https://[${addr}]:${web_ui_port}")
+    else
+      wanted+=("https://${addr}:${web_ui_port}")
+    fi
+  done
+
+  merged="$(sed -n 's/^[[:space:]]*csrf_allowed_origins[[:space:]]*=[[:space:]]*//p' "${config_file}" | tail -n 1)"
+  for origin in "${wanted[@]}"; do
+    if [[ ",${merged// /}," != *",${origin},"* ]]; then
+      merged="${merged:+${merged},}${origin}"
+    fi
+  done
+  sed -i '/^[[:space:]]*csrf_allowed_origins[[:space:]]*=/d' "${config_file}"
+  echo "csrf_allowed_origins = ${merged}" >> "${config_file}"
+  echo "Allowed Sunshine web UI origins: ${merged}"
+
+  chown "${TARGET_USER}:${TARGET_USER}" "${config_file}"
 }
 
 update_grub_cmdline() {

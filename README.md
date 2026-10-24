@@ -300,7 +300,12 @@ Virtual display configured as:
 
 ### Sunshine Configuration
 
-The script adds `capture = x11` to `~/.config/sunshine/sunshine.conf` (unless a `capture` setting is already there). Without it, Sunshine also probes the xdg-desktop-portal screen-sharing backend at startup; on GNOME that waits for someone to answer a "share your screen" dialog on the headless display, so Sunshine hangs before the web UI starts.
+The script sets two options in `~/.config/sunshine/sunshine.conf`:
+
+- `capture = x11` (unless a `capture` setting is already there). Without it, Sunshine also probes the xdg-desktop-portal screen-sharing backend at startup; on GNOME that waits for someone to answer a "share your screen" dialog on the headless display, so Sunshine hangs before the web UI starts.
+- `csrf_allowed_origins`, listing this machine's hostname, `<hostname>.local` and its current IP addresses on port 47990 (merged with any origins already listed). Sunshine's web UI only trusts `localhost` by default, so logging in from another machine fails with a "CSRF Protection Error" without it.
+
+If the machine's IP address changes, re-run the script (or add the new address to `csrf_allowed_origins`) and restart Sunshine.
 
 ### Autostart Entry
 
@@ -335,6 +340,14 @@ Info: Detected display: HDMI-0 (id: 0)HDMI-0 connected: true
 **Solution:** Make sure `~/.config/sunshine/sunshine.conf` contains `capture = x11` (re-running the script adds it), then reboot or restart Sunshine:
 ```bash
 grep capture ~/.config/sunshine/sunshine.conf
+```
+
+### "CSRF Protection Error" when logging in to the web UI
+
+The address in your browser isn't in Sunshine's `csrf_allowed_origins` (see [Sunshine Configuration](#sunshine-configuration)). Add it, using exactly the scheme, host and port you browse to, then restart Sunshine (or reboot):
+```bash
+grep csrf_allowed_origins ~/.config/sunshine/sunshine.conf
+# e.g. csrf_allowed_origins = https://spark-alpha.local:47990,https://192.168.1.50:47990
 ```
 
 ### Sunshine fails to find display
