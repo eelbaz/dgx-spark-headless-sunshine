@@ -27,6 +27,18 @@ determine_target_user() {
   TARGET_UID="$(id -u "${TARGET_USER}")"
 }
 
+install_prerequisites() {
+  local missing=()
+  command -v curl >/dev/null 2>&1 || missing+=(curl)
+  command -v python3 >/dev/null 2>&1 || missing+=(python3)
+
+  if [[ ${#missing[@]} -gt 0 ]]; then
+    echo "Installing prerequisites: ${missing[*]}..."
+    apt update -qq
+    apt install -y -qq "${missing[@]}"
+  fi
+}
+
 install_sunshine() {
   local deb_file="/tmp/sunshine-ubuntu-24.04-arm64.deb"
 
@@ -68,7 +80,7 @@ for asset in release["assets"]:
 
   # Download Sunshine package
   echo "Downloading Sunshine from ${sunshine_url}..."
-  wget -q --show-progress -O "${deb_file}" "${sunshine_url}" || {
+  curl -fL --progress-bar -o "${deb_file}" "${sunshine_url}" || {
     echo "Failed to download Sunshine package." >&2
     exit 1
   }
@@ -247,6 +259,7 @@ EOF
 main() {
   require_root
   determine_target_user
+  install_prerequisites
   install_sunshine
   update_grub_cmdline
   write_xorg_config
