@@ -93,7 +93,7 @@ sunshine --version
 
 ### Configuration Location
 - Configuration files: `~/.config/sunshine/`
-- Logs: Check with `journalctl --user -u sunshine`
+- Logs: `~/.config/sunshine/sunshine.log`
 
 **Note:** Sunshine should NOT be started yet - it requires the display configuration completed by the script below.
 
@@ -114,6 +114,7 @@ The `configure_headless_sunshine.sh` script will:
    - Adds `Coolbits=28` for GPU control
 
 3. **Configure GDM** (`/etc/gdm3/custom.conf`):
+   - Creates backup: `/etc/gdm3/custom.conf.backup-before-sunshine`
    - Disables Wayland, forces X11
    - Enables autologin for target user
 
@@ -134,7 +135,7 @@ The script will automatically:
 - Install autostart entries
 
 ```bash
-cd /home/exobit/development/dgx
+cd dgx-spark-headless-sunshine
 sudo ./configure_headless_sunshine.sh
 ```
 
@@ -153,7 +154,7 @@ grep nvidia-drm /etc/default/grub
 ls -la /etc/X11/xorg.conf*
 
 # Check GDM configuration
-grep -A 4 "[daemon]" /etc/gdm3/custom.conf
+grep -A 4 '^\[daemon\]' /etc/gdm3/custom.conf
 
 # Check autostart entry
 cat ~/.config/autostart/headless-xrandr.desktop
@@ -170,7 +171,7 @@ sudo reboot
 cat /proc/cmdline | grep nvidia-drm.modeset
 
 # Verify modeset enabled (should output: Y)
-cat /sys/module/nvidia_drm/parameters/modeset
+sudo cat /sys/module/nvidia_drm/parameters/modeset
 ```
 
 ### Step 5: Verify Sunshine Operation
@@ -179,7 +180,7 @@ cat /sys/module/nvidia_drm/parameters/modeset
 ps aux | grep sunshine
 
 # Monitor Sunshine logs
-journalctl --user -u sunshine -f
+tail -f ~/.config/sunshine/sunshine.log
 
 # Test from terminal (should work now)
 sunshine
@@ -189,24 +190,7 @@ sunshine
 
 ## Rollback Plan
 
-If issues occur, restore original configuration:
-
-```bash
-# Restore original xorg.conf
-sudo cp /etc/X11/xorg.conf.backup-before-sunshine /etc/X11/xorg.conf
-
-# Remove kernel parameters from GRUB
-sudo nano /etc/default/grub
-# Remove: nvidia-drm.modeset=1 nvidia.NVreg_UsePageAttributeTable=1
-sudo update-grub
-
-# Disable autologin in GDM (optional)
-sudo nano /etc/gdm3/custom.conf
-# Set: AutomaticLoginEnable=false
-
-# Reboot
-sudo reboot
-```
+If issues occur, follow the [Rollback](README.md#rollback) steps in the README to restore the original configuration.
 
 ---
 

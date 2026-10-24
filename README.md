@@ -2,8 +2,8 @@
 
 ![DGX SPARK](https://assets.ngc.nvidia.com/products/api-catalog/spark/dgx-spark-hero.jpg)
 
-Dont have a display and want to use your DGX SPARK In its native Desktop Environment? 
-This repo provides an Automated setup for headless remote desktop streaming on NVIDIA DGX SPARK systems using [Sunshine](https://github.com/LizardByte/Sunshine) and a moonshine client.
+Don't have a display and want to use your DGX SPARK in its native desktop environment?
+This repo provides an automated setup for headless remote desktop streaming on NVIDIA DGX SPARK systems using [Sunshine](https://github.com/LizardByte/Sunshine) and a [Moonlight](https://moonlight-stream.org/) client.
 
 ## Overview
 
@@ -12,6 +12,7 @@ This repository provides a complete, automated solution for configuring NVIDIA D
 ### What This Does
 
 - Installs Sunshine streaming server and all dependencies
+- Configures Sunshine for headless capture and remote access to its web UI
 - Configures NVIDIA DRM modesetting for proper GPU access
 - Sets up virtual display support for headless operation
 - Configures GDM and X11 for automatic login and display initialization
@@ -48,8 +49,9 @@ sudo ./configure_headless_sunshine.sh
 ```
 
 The script will:
-- Download and install Sunshine (v2025.1014.193231)
+- Download and install the latest stable Sunshine release for your Ubuntu version (arm64)
 - Install all required system dependencies
+- Configure Sunshine (`~/.config/sunshine/sunshine.conf`): X11 capture and the web UI origins allowed for this host (see [Sunshine Configuration](#sunshine-configuration))
 - Configure GRUB kernel parameters for NVIDIA DRM modesetting
 - Set up Xorg with virtual display support
 - Configure GDM for X11 and autologin
@@ -69,7 +71,7 @@ grep nvidia-drm /etc/default/grub
 ls -la /etc/X11/xorg.conf*
 
 # Check GDM configuration
-grep -A 4 "[daemon]" /etc/gdm3/custom.conf
+grep -A 4 '^\[daemon\]' /etc/gdm3/custom.conf
 ```
 
 ### 4. Reboot
@@ -85,13 +87,13 @@ sudo reboot
 cat /proc/cmdline | grep nvidia-drm.modeset
 
 # Verify modeset enabled (should output: Y)
-cat /sys/module/nvidia_drm/parameters/modeset
+sudo cat /sys/module/nvidia_drm/parameters/modeset
 
 # Check if Sunshine is running
 ps aux | grep sunshine
 
 # Monitor Sunshine logs
-journalctl --user -u sunshine -f
+tail -f ~/.config/sunshine/sunshine.log
 ```
 
 ### 6. Access Sunshine Web UI
@@ -260,7 +262,7 @@ While streaming:
 #### Connection Refused
 
 - Verify Sunshine web UI is accessible: `https://<DGX-IP>:47990/`
-- Check Sunshine logs: `journalctl --user -u sunshine -f`
+- Check Sunshine logs: `tail -f ~/.config/sunshine/sunshine.log`
 - Ensure virtual display is configured: `xrandr`
 
 #### Poor Performance
@@ -287,7 +289,7 @@ The script adds these kernel parameters to enable proper GPU access:
 
 Virtual display configured as:
 - Output: HDMI-0
-- Resolution: 1600x900 (customizable)
+- Resolution: 1600x900 by default (see below to change it)
 - Virtual heads: 1
 - Connected monitor: DFP-0
 - Coolbits: 28 (enables GPU fan control)
@@ -298,6 +300,15 @@ Virtual display configured as:
 - Default session: gnome-xorg.desktop
 - Autologin: Enabled for the user who ran the script
 
+### Sunshine Configuration
+
+The script sets two options in `~/.config/sunshine/sunshine.conf`:
+
+- `capture = x11` (unless a `capture` setting is already there). Without it, Sunshine also probes the xdg-desktop-portal screen-sharing backend at startup; on GNOME that waits for someone to answer a "share your screen" dialog on the headless display, so Sunshine hangs before the web UI starts.
+- `csrf_allowed_origins`, listing this machine's hostname, `<hostname>.local` and its current IP addresses on port 47990 (merged with any origins already listed). Sunshine's web UI only trusts `localhost` by default, so logging in from another machine fails with a "CSRF Protection Error" without it.
+
+If the machine's IP address changes, re-run the script (or add the new address to `csrf_allowed_origins`) and restart Sunshine.
+
 ### Autostart Entry
 
 Automatically runs on login:
@@ -307,7 +318,39 @@ Automatically runs on login:
 
 Launches Sunshine with proper environment variables if not already running.
 
+### Changing the Resolution
+
+Set `RESOLUTION` when running the script to use a different virtual display mode. It is applied to both the Xorg configuration and the autostart entry:
+
+```bash
+sudo RESOLUTION=1920x1080 ./configure_headless_sunshine.sh
+```
+
+The mode must be one the virtual HDMI-0 output offers; run `xrandr` in the desktop session to list them. Re-run the script with a new value to change it later, then reboot.
+
 ## Troubleshooting
+
+### Web UI doesn't load and Sunshine stops logging after "Detected display"
+
+**Symptoms:** `https://<DGX-IP>:47990/` doesn't connect, `pgrep -a sunshine` shows Sunshine running, but nothing listens on port 47990 (`ss -ltn | grep 47990` is empty) and the log ends with lines like:
+```
+Info: Detected display: HDMI-0 (id: 0)HDMI-0 connected: true
+```
+
+**Cause:** Sunshine is waiting on the xdg-desktop-portal screen-sharing probe (see [Sunshine Configuration](#sunshine-configuration)).
+
+**Solution:** Make sure `~/.config/sunshine/sunshine.conf` contains `capture = x11` (re-running the script adds it), then reboot or restart Sunshine:
+```bash
+grep capture ~/.config/sunshine/sunshine.conf
+```
+
+### "CSRF Protection Error" when logging in to the web UI
+
+The address in your browser isn't in Sunshine's `csrf_allowed_origins` (see [Sunshine Configuration](#sunshine-configuration)). Add it, using exactly the scheme, host and port you browse to, then restart Sunshine (or reboot):
+```bash
+grep csrf_allowed_origins ~/.config/sunshine/sunshine.conf
+# e.g. csrf_allowed_origins = https://spark-alpha.local:47990,https://192.168.1.50:47990
+```
 
 ### Sunshine fails to find display
 
@@ -321,7 +364,7 @@ Fatal: Unable to find display or encoder during startup
 **Solution:**
 1. Verify DRM modeset is enabled:
    ```bash
-   cat /sys/module/nvidia_drm/parameters/modeset
+   sudo cat /sys/module/nvidia_drm/parameters/modeset
    ```
    Should output: `Y`
 
@@ -329,7 +372,7 @@ Fatal: Unable to find display or encoder during startup
    ```bash
    xrandr
    ```
-   Should show HDMI-0 at 1600x900
+   Should show HDMI-0 at your configured resolution (1600x900 by default)
 
 3. Verify Xorg is running (not Wayland):
    ```bash
@@ -352,9 +395,10 @@ Check the autostart entry:
 cat ~/.config/autostart/headless-xrandr.desktop
 ```
 
-Check system logs:
+Check Sunshine's own log, and the session journal for output from the autostart entry:
 ```bash
-journalctl --user -u sunshine -n 50
+tail -n 50 ~/.config/sunshine/sunshine.log
+journalctl --user -b | grep -i sunshine
 ```
 
 ## Rollback
@@ -362,21 +406,32 @@ journalctl --user -u sunshine -n 50
 If you need to revert the changes:
 
 ```bash
-# Restore original xorg.conf
-sudo cp /etc/X11/xorg.conf.backup-before-sunshine /etc/X11/xorg.conf
+# Restore the original xorg.conf, or remove ours if there was none before
+if [ -f /etc/X11/xorg.conf.backup-before-sunshine ]; then
+  sudo cp /etc/X11/xorg.conf.backup-before-sunshine /etc/X11/xorg.conf
+else
+  sudo rm /etc/X11/xorg.conf
+fi
+
+# Restore the original GDM configuration (re-enables Wayland, disables autologin)
+sudo cp /etc/gdm3/custom.conf.backup-before-sunshine /etc/gdm3/custom.conf
 
 # Remove kernel parameters from GRUB
 sudo nano /etc/default/grub
 # Remove: nvidia-drm.modeset=1 nvidia.NVreg_UsePageAttributeTable=1
 sudo update-grub
 
-# Disable autologin in GDM (optional)
-sudo nano /etc/gdm3/custom.conf
-# Set: AutomaticLoginEnable=false
+# Remove the autostart entry
+rm ~/.config/autostart/headless-xrandr.desktop
+
+# Optionally remove the settings the script added to Sunshine's config
+sed -i '/^capture = x11$/d; /^csrf_allowed_origins = /d' ~/.config/sunshine/sunshine.conf
 
 # Reboot
 sudo reboot
 ```
+
+If you ran an older version of the script that did not back up `/etc/gdm3/custom.conf`, edit it instead and set `AutomaticLoginEnable=false` (and remove `WaylandEnable=false` to re-enable Wayland).
 
 ## Technical Background
 

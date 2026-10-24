@@ -4,6 +4,9 @@
 
 set -euo pipefail
 
+# Virtual display resolution; override with e.g. sudo RESOLUTION=1920x1080 ./configure_headless_sunshine.sh
+RESOLUTION="${RESOLUTION:-1600x900}"
+
 require_root() {
   if [[ "${EUID}" -ne 0 ]]; then
     echo "This script must be run as root (try: sudo $0)" >&2
@@ -27,6 +30,28 @@ determine_target_user() {
   TARGET_UID="$(id -u "${TARGET_USER}")"
 }
 
+parse_resolution() {
+  if [[ ! "${RESOLUTION}" =~ ^([0-9]+)x([0-9]+)$ ]]; then
+    echo "Invalid RESOLUTION '${RESOLUTION}'; expected WIDTHxHEIGHT, e.g. 1920x1080." >&2
+    exit 1
+  fi
+  # The Xorg virtual screen must be at least as large as the mode; keep 1920x1080 as the minimum
+  VIRTUAL_WIDTH=$(( BASH_REMATCH[1] > 1920 ? BASH_REMATCH[1] : 1920 ))
+  VIRTUAL_HEIGHT=$(( BASH_REMATCH[2] > 1080 ? BASH_REMATCH[2] : 1080 ))
+}
+
+install_prerequisites() {
+  local missing=()
+  command -v curl >/dev/null 2>&1 || missing+=(curl)
+  command -v python3 >/dev/null 2>&1 || missing+=(python3)
+
+  if [[ ${#missing[@]} -gt 0 ]]; then
+    echo "Installing prerequisites: ${missing[*]}..."
+    apt update -qq
+    apt install -y -qq "${missing[@]}"
+  fi
+}
+
 install_sunshine() {
   local deb_file="/tmp/sunshine-ubuntu-24.04-arm64.deb"
 
@@ -38,58 +63,45 @@ install_sunshine() {
 
   echo "Installing Sunshine streaming software..."
 
-  # Fetch the latest release version from GitHub API (including pre-releases)
-  echo "Fetching latest Sunshine release information..."
-  local latest_tag
-  latest_tag=$(curl -s "https://api.github.com/repos/LizardByte/Sunshine/releases" | grep '"tag_name"' | head -1 | cut -d'"' -f4)
+  local ubuntu_version
+  ubuntu_version="$(. /etc/os-release && echo "${VERSION_ID}")"
 
-  if [[ -z "${latest_tag}" ]]; then
-    echo "Failed to fetch latest Sunshine release information." >&2
+  # Look up the latest stable release and pick its Ubuntu arm64 .deb from the asset list.
+  # Asset names changed in v2026.906 (sunshine-ubuntu-24.04-arm64.deb ->
+  # sunshine_<version>-1+ubuntu24.04_arm64.deb), so match either form.
+  echo "Fetching latest Sunshine release information..."
+  local release_info latest_tag sunshine_url
+  release_info=$(curl -fsSL "https://api.github.com/repos/LizardByte/Sunshine/releases/latest" | UBUNTU_VERSION="${ubuntu_version}" python3 -c '
+import json, os, re, sys
+
+release = json.load(sys.stdin)
+version = re.escape(os.environ["UBUNTU_VERSION"])
+pattern = re.compile(rf"^sunshine(-ubuntu-{version}-arm64|_.+\+ubuntu{version}_arm64)\.deb$")
+for asset in release["assets"]:
+    if pattern.match(asset["name"]):
+        print(release["tag_name"], asset["browser_download_url"])
+        break
+') || true
+  read -r latest_tag sunshine_url <<< "${release_info}" || true
+
+  if [[ -z "${latest_tag}" || -z "${sunshine_url}" ]]; then
+    echo "Failed to find a Sunshine package for Ubuntu ${ubuntu_version} arm64 in the latest release." >&2
     exit 1
   fi
 
   echo "Latest Sunshine release: ${latest_tag}"
-  local sunshine_url="https://github.com/LizardByte/Sunshine/releases/download/${latest_tag}/sunshine-ubuntu-24.04-arm64.deb"
 
   # Download Sunshine package
   echo "Downloading Sunshine from ${sunshine_url}..."
-  wget -q --show-progress -O "${deb_file}" "${sunshine_url}" || {
+  curl -fL --progress-bar -o "${deb_file}" "${sunshine_url}" || {
     echo "Failed to download Sunshine package." >&2
     exit 1
   }
 
-  # Install dependencies
-  echo "Installing Sunshine dependencies..."
+  # Install Sunshine; apt resolves the package's own runtime dependencies
+  echo "Installing Sunshine package and dependencies..."
   apt update -qq
-  apt install -y -qq \
-    libavcodec-dev \
-    libavformat-dev \
-    libavutil-dev \
-    libswscale-dev \
-    libevdev-dev \
-    libpulse-dev \
-    libopus-dev \
-    libxtst-dev \
-    libx11-dev \
-    libxrandr-dev \
-    libxfixes-dev \
-    libxcb1-dev \
-    libxcb-shm0-dev \
-    libxcb-xfixes0-dev \
-    libdrm-dev \
-    libcap-dev \
-    libudev-dev \
-    libwayland-dev \
-    libinput-dev \
-    libcurl4-openssl-dev \
-    libssl-dev 2>/dev/null || true
-
-  # Install Sunshine
-  echo "Installing Sunshine package..."
-  dpkg -i "${deb_file}" 2>/dev/null || {
-    echo "Fixing broken dependencies..."
-    apt --fix-broken install -y -qq
-  }
+  apt install -y -qq "${deb_file}"
 
   # Clean up
   rm -f "${deb_file}"
@@ -102,30 +114,80 @@ install_sunshine() {
   fi
 }
 
+configure_sunshine() {
+  local config_dir="${TARGET_HOME}/.config/sunshine"
+  local config_file="${config_dir}/sunshine.conf"
+
+  if [[ ! -d "${config_dir}" ]]; then
+    install -d -m 700 -o "${TARGET_USER}" -g "${TARGET_USER}" "${config_dir}"
+  fi
+
+  touch "${config_file}"
+  if [[ -s "${config_file}" && -n "$(tail -c 1 "${config_file}")" ]]; then
+    echo >> "${config_file}"
+  fi
+
+  # Without an explicit capture method Sunshine also probes the xdg-desktop-portal
+  # ScreenCast backend, which on GNOME waits for someone to answer a screen-sharing
+  # dialog on the headless display, hanging startup before the web UI comes up.
+  if grep -qE '^[[:space:]]*capture[[:space:]]*=' "${config_file}"; then
+    echo "Leaving the existing capture setting in ${config_file} unchanged."
+  else
+    echo "capture = x11" >> "${config_file}"
+    echo "Set Sunshine capture method to x11 in ${config_file}."
+  fi
+
+  # The web UI's CSRF protection only trusts localhost origins by default, which blocks
+  # logging in from another machine. Allow this host's names and current addresses,
+  # keeping any origins already configured.
+  # Browsers send the hostname in lowercase, and Sunshine matches origins case-sensitively.
+  local web_ui_port=47990 host
+  host="$(hostname)"
+  host="${host,,}"
+  local -a wanted=("https://${host}:${web_ui_port}" "https://${host}.local:${web_ui_port}")
+  local addr origin merged
+  for addr in $(hostname -I); do
+    if [[ "${addr}" == *:* ]]; then
+      wanted+=("https://[${addr}]:${web_ui_port}")
+    else
+      wanted+=("https://${addr}:${web_ui_port}")
+    fi
+  done
+
+  merged="$(sed -n 's/^[[:space:]]*csrf_allowed_origins[[:space:]]*=[[:space:]]*//p' "${config_file}" | tail -n 1)"
+  for origin in "${wanted[@]}"; do
+    if [[ ",${merged// /}," != *",${origin},"* ]]; then
+      merged="${merged:+${merged},}${origin}"
+    fi
+  done
+  sed -i '/^[[:space:]]*csrf_allowed_origins[[:space:]]*=/d' "${config_file}"
+  echo "csrf_allowed_origins = ${merged}" >> "${config_file}"
+  echo "Allowed Sunshine web UI origins: ${merged}"
+
+  chown "${TARGET_USER}:${TARGET_USER}" "${config_file}"
+}
+
 update_grub_cmdline() {
   local grub_file="/etc/default/grub"
   local flags=("nvidia-drm.modeset=1" "nvidia.NVreg_UsePageAttributeTable=1")
 
-  python3 - <<'PY'
-import re, shlex
+  GRUB_FILE="${grub_file}" GRUB_FLAGS="${flags[*]}" python3 - <<'PY'
+import os, re
 from pathlib import Path
 
-grub_path = Path("/etc/default/grub")
+grub_path = Path(os.environ["GRUB_FILE"])
 text = grub_path.read_text()
 match = re.search(r'^GRUB_CMDLINE_LINUX_DEFAULT="([^"]*)"', text, re.MULTILINE)
 if not match:
-    raise SystemExit("Unable to find GRUB_CMDLINE_LINUX_DEFAULT in /etc/default/grub")
+    raise SystemExit(f"Unable to find GRUB_CMDLINE_LINUX_DEFAULT in {grub_path}")
 
-existing = shlex.split(match.group(1))
-desired = ["nvidia-drm.modeset=1", "nvidia.NVreg_UsePageAttributeTable=1"]
-for flag in desired:
-    if flag not in existing:
-        existing.append(flag)
-
-replacement = f'GRUB_CMDLINE_LINUX_DEFAULT="{" ".join(existing)}"'
-start, end = match.span()
-text = text[:start] + replacement + text[end:]
-grub_path.write_text(text)
+# Append only the missing flags, leaving the existing value exactly as written
+cmdline = match.group(1)
+missing = [flag for flag in os.environ["GRUB_FLAGS"].split() if flag not in cmdline.split()]
+if missing:
+    cmdline = " ".join([cmdline, *missing]).strip()
+    text = text[:match.start(1)] + cmdline + text[match.end(1):]
+    grub_path.write_text(text)
 PY
 
   echo "Regenerated GRUB command line with NVIDIA DRM modeset flags."
@@ -138,30 +200,14 @@ write_xorg_config() {
     cp "${xorg_path}" "${xorg_path}.backup-before-sunshine"
   fi
 
-  cat <<'EOF' > "${xorg_path}"
+  cat <<EOF > "${xorg_path}"
 # Headless Xorg configuration for NVIDIA GB10 on DGX Spark
 Section "ServerLayout"
     Identifier     "Layout0"
     Screen      0  "Screen0" 0 0
-    InputDevice    "Keyboard0" "CoreKeyboard"
-    InputDevice    "Mouse0" "CorePointer"
 EndSection
 
 Section "Files"
-EndSection
-
-Section "InputDevice"
-    Identifier     "Mouse0"
-    Driver         "mouse"
-    Option         "Protocol" "auto"
-    Option         "Device" "/dev/psaux"
-    Option         "Emulate3Buttons" "no"
-    Option         "ZAxisMapping" "4 5"
-EndSection
-
-Section "InputDevice"
-    Identifier     "Keyboard0"
-    Driver         "kbd"
 EndSection
 
 Section "Monitor"
@@ -187,9 +233,9 @@ Section "Screen"
     Device         "Device0"
     Monitor        "Monitor0"
     DefaultDepth    24
-    Option         "MetaModes" "HDMI-0: 1600x900 +0+0"
+    Option         "MetaModes" "HDMI-0: ${RESOLUTION} +0+0"
     SubSection     "Display"
-        Virtual     1920 1080
+        Virtual     ${VIRTUAL_WIDTH} ${VIRTUAL_HEIGHT}
         Depth       24
     EndSubSection
 EndSection
@@ -199,35 +245,39 @@ EOF
 }
 
 configure_gdm() {
-  AUTLOGIN_USER="${TARGET_USER}" python3 - <<'PY'
+  local gdm_path="/etc/gdm3/custom.conf"
+  if [[ -f "${gdm_path}" && ! -f "${gdm_path}.backup-before-sunshine" ]]; then
+    cp "${gdm_path}" "${gdm_path}.backup-before-sunshine"
+  fi
+
+  GDM_FILE="${gdm_path}" AUTOLOGIN_USER="${TARGET_USER}" python3 - <<'PY'
+import os, re
 from pathlib import Path
-from configparser import ConfigParser
-import os
 
-path = Path("/etc/gdm3/custom.conf")
-parser = ConfigParser(strict=False, allow_no_value=True)
-parser.optionxform = str  # Preserve option casing expected by GDM
-parser.read(path)
+path = Path(os.environ["GDM_FILE"])
+lines = path.read_text().splitlines() if path.exists() else []
+settings = {
+    "WaylandEnable": "false",
+    "DefaultSession": "gnome-xorg.desktop",
+    "AutomaticLoginEnable": "true",
+    "AutomaticLogin": os.environ["AUTOLOGIN_USER"],
+}
+managed = {key.lower() for key in settings}
 
-if "daemon" not in parser:
-    parser["daemon"] = {}
+# Edit the [daemon] section line by line so comments and other sections are kept
+# (ConfigParser would drop every comment in the file when writing it back).
+header = next((i for i, line in enumerate(lines) if line.strip().lower() == "[daemon]"), None)
+if header is None:
+    lines += ["", "[daemon]"] if lines else ["[daemon]"]
+    header = len(lines) - 1
 
-daemon = parser["daemon"]
-for key in list(daemon.keys()):
-    if key.lower() in {
-        "waylandenable",
-        "defaultsession",
-        "automaticloginenable",
-        "automaticlogin",
-    }:
-        daemon.pop(key)
-daemon["WaylandEnable"] = "false"
-daemon["DefaultSession"] = "gnome-xorg.desktop"
-daemon["AutomaticLoginEnable"] = "true"
-daemon["AutomaticLogin"] = os.environ["AUTLOGIN_USER"]
-
-with path.open("w") as fh:
-    parser.write(fh, space_around_delimiters=False)
+end = next((i for i in range(header + 1, len(lines)) if re.match(r"^\s*\[.*\]\s*$", lines[i])), len(lines))
+body = [
+    line for line in lines[header + 1:end]
+    if line.lstrip().startswith(("#", ";")) or line.split("=", 1)[0].strip().lower() not in managed
+]
+lines[header + 1:end] = [f"{key}={value}" for key, value in settings.items()] + body
+path.write_text("\n".join(lines) + "\n")
 PY
 
   echo "Configured GDM for Xorg and autologin (user ${TARGET_USER})."
@@ -244,7 +294,7 @@ install_autostart() {
   cat <<EOF > "${desktop_file}"
 [Desktop Entry]
 Type=Application
-Exec=/bin/sh -c '/usr/bin/xrandr --output HDMI-0 --mode 1600x900; sleep 5; if ! pgrep -x sunshine >/dev/null 2>&1; then DISPLAY=:0 XAUTHORITY=${xauth} XDG_RUNTIME_DIR=${runtime_dir} /usr/bin/sunshine & fi'
+Exec=/bin/sh -c '/usr/bin/xrandr --output HDMI-0 --mode ${RESOLUTION}; sleep 5; if ! pgrep -x sunshine >/dev/null 2>&1; then DISPLAY=:0 XAUTHORITY=${xauth} XDG_RUNTIME_DIR=${runtime_dir} /usr/bin/sunshine & fi'
 Hidden=false
 NoDisplay=false
 X-GNOME-Autostart-enabled=true
@@ -260,7 +310,10 @@ EOF
 main() {
   require_root
   determine_target_user
+  parse_resolution
+  install_prerequisites
   install_sunshine
+  configure_sunshine
   update_grub_cmdline
   write_xorg_config
   configure_gdm
@@ -270,7 +323,7 @@ main() {
 
 Configuration complete. Next steps:
   1. Reboot the system so the new GRUB command line and Xorg configuration take effect.
-  2. Allow the autologin session to initialize; the GNOME autostart entry will set the 1600x900 mode and launch Sunshine.
+  2. Allow the autologin session to initialize; the GNOME autostart entry will set the ${RESOLUTION} mode and launch Sunshine.
   3. Access Sunshine Web UI at: https://$(hostname):47990/ or https://$(hostname -I | awk '{print $1}'):47990/
      IMPORTANT: Use HTTPS (not HTTP) - you will need to accept the self-signed certificate warning.
   4. Set up your Sunshine username and password on first access.
