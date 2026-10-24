@@ -298,6 +298,10 @@ Virtual display configured as:
 - Default session: gnome-xorg.desktop
 - Autologin: Enabled for the user who ran the script
 
+### Sunshine Configuration
+
+The script adds `capture = x11` to `~/.config/sunshine/sunshine.conf` (unless a `capture` setting is already there). Without it, Sunshine also probes the xdg-desktop-portal screen-sharing backend at startup; on GNOME that waits for someone to answer a "share your screen" dialog on the headless display, so Sunshine hangs before the web UI starts.
+
 ### Autostart Entry
 
 Automatically runs on login:
@@ -318,6 +322,20 @@ sudo RESOLUTION=1920x1080 ./configure_headless_sunshine.sh
 The mode must be one the virtual HDMI-0 output offers; run `xrandr` in the desktop session to list them. Re-run the script with a new value to change it later, then reboot.
 
 ## Troubleshooting
+
+### Web UI doesn't load and Sunshine stops logging after "Detected display"
+
+**Symptoms:** `https://<DGX-IP>:47990/` doesn't connect, `pgrep -a sunshine` shows Sunshine running, but nothing listens on port 47990 (`ss -ltn | grep 47990` is empty) and the log ends with lines like:
+```
+Info: Detected display: HDMI-0 (id: 0)HDMI-0 connected: true
+```
+
+**Cause:** Sunshine is waiting on the xdg-desktop-portal screen-sharing probe (see [Sunshine Configuration](#sunshine-configuration)).
+
+**Solution:** Make sure `~/.config/sunshine/sunshine.conf` contains `capture = x11` (re-running the script adds it), then reboot or restart Sunshine:
+```bash
+grep capture ~/.config/sunshine/sunshine.conf
+```
 
 ### Sunshine fails to find display
 

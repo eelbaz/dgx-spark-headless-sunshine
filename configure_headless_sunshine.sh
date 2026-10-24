@@ -114,6 +114,31 @@ for asset in release["assets"]:
   fi
 }
 
+configure_sunshine() {
+  local config_dir="${TARGET_HOME}/.config/sunshine"
+  local config_file="${config_dir}/sunshine.conf"
+
+  if [[ ! -d "${config_dir}" ]]; then
+    install -d -m 700 -o "${TARGET_USER}" -g "${TARGET_USER}" "${config_dir}"
+  fi
+
+  # Without an explicit capture method Sunshine also probes the xdg-desktop-portal
+  # ScreenCast backend, which on GNOME waits for someone to answer a screen-sharing
+  # dialog on the headless display, hanging startup before the web UI comes up.
+  if [[ -f "${config_file}" ]] && grep -qE '^[[:space:]]*capture[[:space:]]*=' "${config_file}"; then
+    echo "Leaving the existing capture setting in ${config_file} unchanged."
+    return 0
+  fi
+
+  if [[ -s "${config_file}" && -n "$(tail -c 1 "${config_file}")" ]]; then
+    echo >> "${config_file}"
+  fi
+  echo "capture = x11" >> "${config_file}"
+  chown "${TARGET_USER}:${TARGET_USER}" "${config_file}"
+
+  echo "Set Sunshine capture method to x11 in ${config_file}."
+}
+
 update_grub_cmdline() {
   local grub_file="/etc/default/grub"
   local flags=("nvidia-drm.modeset=1" "nvidia.NVreg_UsePageAttributeTable=1")
@@ -260,6 +285,7 @@ main() {
   parse_resolution
   install_prerequisites
   install_sunshine
+  configure_sunshine
   update_grub_cmdline
   write_xorg_config
   configure_gdm
