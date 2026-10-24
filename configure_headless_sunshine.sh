@@ -38,18 +38,33 @@ install_sunshine() {
 
   echo "Installing Sunshine streaming software..."
 
-  # Fetch the latest release version from GitHub API (including pre-releases)
-  echo "Fetching latest Sunshine release information..."
-  local latest_tag
-  latest_tag=$(curl -s "https://api.github.com/repos/LizardByte/Sunshine/releases" | grep '"tag_name"' | head -1 | cut -d'"' -f4)
+  local ubuntu_version
+  ubuntu_version="$(. /etc/os-release && echo "${VERSION_ID}")"
 
-  if [[ -z "${latest_tag}" ]]; then
-    echo "Failed to fetch latest Sunshine release information." >&2
+  # Look up the latest stable release and pick its Ubuntu arm64 .deb from the asset list.
+  # Asset names changed in v2026.906 (sunshine-ubuntu-24.04-arm64.deb ->
+  # sunshine_<version>-1+ubuntu24.04_arm64.deb), so match either form.
+  echo "Fetching latest Sunshine release information..."
+  local release_info latest_tag sunshine_url
+  release_info=$(curl -fsSL "https://api.github.com/repos/LizardByte/Sunshine/releases/latest" | UBUNTU_VERSION="${ubuntu_version}" python3 -c '
+import json, os, re, sys
+
+release = json.load(sys.stdin)
+version = re.escape(os.environ["UBUNTU_VERSION"])
+pattern = re.compile(rf"^sunshine(-ubuntu-{version}-arm64|_.+\+ubuntu{version}_arm64)\.deb$")
+for asset in release["assets"]:
+    if pattern.match(asset["name"]):
+        print(release["tag_name"], asset["browser_download_url"])
+        break
+') || true
+  read -r latest_tag sunshine_url <<< "${release_info}" || true
+
+  if [[ -z "${latest_tag}" || -z "${sunshine_url}" ]]; then
+    echo "Failed to find a Sunshine package for Ubuntu ${ubuntu_version} arm64 in the latest release." >&2
     exit 1
   fi
 
   echo "Latest Sunshine release: ${latest_tag}"
-  local sunshine_url="https://github.com/LizardByte/Sunshine/releases/download/${latest_tag}/sunshine-ubuntu-24.04-arm64.deb"
 
   # Download Sunshine package
   echo "Downloading Sunshine from ${sunshine_url}..."

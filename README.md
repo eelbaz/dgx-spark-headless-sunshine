@@ -48,7 +48,7 @@ sudo ./configure_headless_sunshine.sh
 ```
 
 The script will:
-- Download and install Sunshine (v2025.1014.193231)
+- Download and install the latest stable Sunshine release for your Ubuntu version (arm64)
 - Install all required system dependencies
 - Configure GRUB kernel parameters for NVIDIA DRM modesetting
 - Set up Xorg with virtual display support
