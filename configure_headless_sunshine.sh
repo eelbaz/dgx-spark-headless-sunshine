@@ -4,6 +4,9 @@
 
 set -euo pipefail
 
+# Virtual display resolution; override with e.g. sudo RESOLUTION=1920x1080 ./configure_headless_sunshine.sh
+RESOLUTION="${RESOLUTION:-1600x900}"
+
 require_root() {
   if [[ "${EUID}" -ne 0 ]]; then
     echo "This script must be run as root (try: sudo $0)" >&2
@@ -25,6 +28,16 @@ determine_target_user() {
   TARGET_USER="${user}"
   TARGET_HOME="$(eval echo "~${TARGET_USER}")"
   TARGET_UID="$(id -u "${TARGET_USER}")"
+}
+
+parse_resolution() {
+  if [[ ! "${RESOLUTION}" =~ ^([0-9]+)x([0-9]+)$ ]]; then
+    echo "Invalid RESOLUTION '${RESOLUTION}'; expected WIDTHxHEIGHT, e.g. 1920x1080." >&2
+    exit 1
+  fi
+  # The Xorg virtual screen must be at least as large as the mode; keep 1920x1080 as the minimum
+  VIRTUAL_WIDTH=$(( BASH_REMATCH[1] > 1920 ? BASH_REMATCH[1] : 1920 ))
+  VIRTUAL_HEIGHT=$(( BASH_REMATCH[2] > 1080 ? BASH_REMATCH[2] : 1080 ))
 }
 
 install_prerequisites() {
@@ -134,7 +147,7 @@ write_xorg_config() {
     cp "${xorg_path}" "${xorg_path}.backup-before-sunshine"
   fi
 
-  cat <<'EOF' > "${xorg_path}"
+  cat <<EOF > "${xorg_path}"
 # Headless Xorg configuration for NVIDIA GB10 on DGX Spark
 Section "ServerLayout"
     Identifier     "Layout0"
@@ -167,9 +180,9 @@ Section "Screen"
     Device         "Device0"
     Monitor        "Monitor0"
     DefaultDepth    24
-    Option         "MetaModes" "HDMI-0: 1600x900 +0+0"
+    Option         "MetaModes" "HDMI-0: ${RESOLUTION} +0+0"
     SubSection     "Display"
-        Virtual     1920 1080
+        Virtual     ${VIRTUAL_WIDTH} ${VIRTUAL_HEIGHT}
         Depth       24
     EndSubSection
 EndSection
@@ -228,7 +241,7 @@ install_autostart() {
   cat <<EOF > "${desktop_file}"
 [Desktop Entry]
 Type=Application
-Exec=/bin/sh -c '/usr/bin/xrandr --output HDMI-0 --mode 1600x900; sleep 5; if ! pgrep -x sunshine >/dev/null 2>&1; then DISPLAY=:0 XAUTHORITY=${xauth} XDG_RUNTIME_DIR=${runtime_dir} /usr/bin/sunshine & fi'
+Exec=/bin/sh -c '/usr/bin/xrandr --output HDMI-0 --mode ${RESOLUTION}; sleep 5; if ! pgrep -x sunshine >/dev/null 2>&1; then DISPLAY=:0 XAUTHORITY=${xauth} XDG_RUNTIME_DIR=${runtime_dir} /usr/bin/sunshine & fi'
 Hidden=false
 NoDisplay=false
 X-GNOME-Autostart-enabled=true
@@ -244,6 +257,7 @@ EOF
 main() {
   require_root
   determine_target_user
+  parse_resolution
   install_prerequisites
   install_sunshine
   update_grub_cmdline
@@ -255,7 +269,7 @@ main() {
 
 Configuration complete. Next steps:
   1. Reboot the system so the new GRUB command line and Xorg configuration take effect.
-  2. Allow the autologin session to initialize; the GNOME autostart entry will set the 1600x900 mode and launch Sunshine.
+  2. Allow the autologin session to initialize; the GNOME autostart entry will set the ${RESOLUTION} mode and launch Sunshine.
   3. Access Sunshine Web UI at: https://$(hostname):47990/ or https://$(hostname -I | awk '{print $1}'):47990/
      IMPORTANT: Use HTTPS (not HTTP) - you will need to accept the self-signed certificate warning.
   4. Set up your Sunshine username and password on first access.

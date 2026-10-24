@@ -287,7 +287,7 @@ The script adds these kernel parameters to enable proper GPU access:
 
 Virtual display configured as:
 - Output: HDMI-0
-- Resolution: 1600x900 (customizable)
+- Resolution: 1600x900 by default (see below to change it)
 - Virtual heads: 1
 - Connected monitor: DFP-0
 - Coolbits: 28 (enables GPU fan control)
@@ -306,6 +306,16 @@ Automatically runs on login:
 ```
 
 Launches Sunshine with proper environment variables if not already running.
+
+### Changing the Resolution
+
+Set `RESOLUTION` when running the script to use a different virtual display mode. It is applied to both the Xorg configuration and the autostart entry:
+
+```bash
+sudo RESOLUTION=1920x1080 ./configure_headless_sunshine.sh
+```
+
+The mode must be one the virtual HDMI-0 output offers; run `xrandr` in the desktop session to list them. Re-run the script with a new value to change it later, then reboot.
 
 ## Troubleshooting
 
@@ -329,7 +339,7 @@ Fatal: Unable to find display or encoder during startup
    ```bash
    xrandr
    ```
-   Should show HDMI-0 at 1600x900
+   Should show HDMI-0 at your configured resolution (1600x900 by default)
 
 3. Verify Xorg is running (not Wayland):
    ```bash
