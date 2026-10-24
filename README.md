@@ -506,4 +506,4 @@ MIT License - See LICENSE file for details
 
 **Repository:** https://github.com/eelbaz/dgx-spark-headless-sunshine
 **Tested on:** DGX SPARK with NVIDIA GB10 (Blackwell), Ubuntu 24.04 ARM64
-**Last Updated:** 2025-10-19
+**Last Updated:** 2026-10-24
