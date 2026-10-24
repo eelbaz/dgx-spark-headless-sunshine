@@ -105,26 +105,23 @@ update_grub_cmdline() {
   local grub_file="/etc/default/grub"
   local flags=("nvidia-drm.modeset=1" "nvidia.NVreg_UsePageAttributeTable=1")
 
-  python3 - <<'PY'
-import re, shlex
+  GRUB_FILE="${grub_file}" GRUB_FLAGS="${flags[*]}" python3 - <<'PY'
+import os, re
 from pathlib import Path
 
-grub_path = Path("/etc/default/grub")
+grub_path = Path(os.environ["GRUB_FILE"])
 text = grub_path.read_text()
 match = re.search(r'^GRUB_CMDLINE_LINUX_DEFAULT="([^"]*)"', text, re.MULTILINE)
 if not match:
-    raise SystemExit("Unable to find GRUB_CMDLINE_LINUX_DEFAULT in /etc/default/grub")
+    raise SystemExit(f"Unable to find GRUB_CMDLINE_LINUX_DEFAULT in {grub_path}")
 
-existing = shlex.split(match.group(1))
-desired = ["nvidia-drm.modeset=1", "nvidia.NVreg_UsePageAttributeTable=1"]
-for flag in desired:
-    if flag not in existing:
-        existing.append(flag)
-
-replacement = f'GRUB_CMDLINE_LINUX_DEFAULT="{" ".join(existing)}"'
-start, end = match.span()
-text = text[:start] + replacement + text[end:]
-grub_path.write_text(text)
+# Append only the missing flags, leaving the existing value exactly as written
+cmdline = match.group(1)
+missing = [flag for flag in os.environ["GRUB_FLAGS"].split() if flag not in cmdline.split()]
+if missing:
+    cmdline = " ".join([cmdline, *missing]).strip()
+    text = text[:match.start(1)] + cmdline + text[match.end(1):]
+    grub_path.write_text(text)
 PY
 
   echo "Regenerated GRUB command line with NVIDIA DRM modeset flags."
