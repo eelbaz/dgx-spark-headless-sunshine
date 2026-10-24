@@ -135,7 +135,7 @@ The script will automatically:
 - Install autostart entries
 
 ```bash
-cd /home/exobit/development/dgx
+cd dgx-spark-headless-sunshine
 sudo ./configure_headless_sunshine.sh
 ```
 

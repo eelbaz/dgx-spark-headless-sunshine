@@ -2,8 +2,8 @@
 
 ![DGX SPARK](https://assets.ngc.nvidia.com/products/api-catalog/spark/dgx-spark-hero.jpg)
 
-Dont have a display and want to use your DGX SPARK In its native Desktop Environment? 
-This repo provides an Automated setup for headless remote desktop streaming on NVIDIA DGX SPARK systems using [Sunshine](https://github.com/LizardByte/Sunshine) and a moonshine client.
+Don't have a display and want to use your DGX SPARK in its native desktop environment?
+This repo provides an automated setup for headless remote desktop streaming on NVIDIA DGX SPARK systems using [Sunshine](https://github.com/LizardByte/Sunshine) and a [Moonlight](https://moonlight-stream.org/) client.
 
 ## Overview
 
