@@ -153,7 +153,7 @@ grep nvidia-drm /etc/default/grub
 ls -la /etc/X11/xorg.conf*
 
 # Check GDM configuration
-grep -A 4 "[daemon]" /etc/gdm3/custom.conf
+grep -A 4 '^\[daemon\]' /etc/gdm3/custom.conf
 
 # Check autostart entry
 cat ~/.config/autostart/headless-xrandr.desktop
