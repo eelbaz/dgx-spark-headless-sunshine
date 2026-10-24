@@ -373,21 +373,29 @@ journalctl --user -b | grep -i sunshine
 If you need to revert the changes:
 
 ```bash
-# Restore original xorg.conf
-sudo cp /etc/X11/xorg.conf.backup-before-sunshine /etc/X11/xorg.conf
+# Restore the original xorg.conf, or remove ours if there was none before
+if [ -f /etc/X11/xorg.conf.backup-before-sunshine ]; then
+  sudo cp /etc/X11/xorg.conf.backup-before-sunshine /etc/X11/xorg.conf
+else
+  sudo rm /etc/X11/xorg.conf
+fi
+
+# Restore the original GDM configuration (re-enables Wayland, disables autologin)
+sudo cp /etc/gdm3/custom.conf.backup-before-sunshine /etc/gdm3/custom.conf
 
 # Remove kernel parameters from GRUB
 sudo nano /etc/default/grub
 # Remove: nvidia-drm.modeset=1 nvidia.NVreg_UsePageAttributeTable=1
 sudo update-grub
 
-# Disable autologin in GDM (optional)
-sudo nano /etc/gdm3/custom.conf
-# Set: AutomaticLoginEnable=false
+# Remove the autostart entry
+rm ~/.config/autostart/headless-xrandr.desktop
 
 # Reboot
 sudo reboot
 ```
+
+If you ran an older version of the script that did not back up `/etc/gdm3/custom.conf`, edit it instead and set `AutomaticLoginEnable=false` (and remove `WaylandEnable=false` to re-enable Wayland).
 
 ## Technical Background
 

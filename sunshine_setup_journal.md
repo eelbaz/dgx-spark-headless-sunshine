@@ -114,6 +114,7 @@ The `configure_headless_sunshine.sh` script will:
    - Adds `Coolbits=28` for GPU control
 
 3. **Configure GDM** (`/etc/gdm3/custom.conf`):
+   - Creates backup: `/etc/gdm3/custom.conf.backup-before-sunshine`
    - Disables Wayland, forces X11
    - Enables autologin for target user
 
@@ -189,24 +190,7 @@ sunshine
 
 ## Rollback Plan
 
-If issues occur, restore original configuration:
-
-```bash
-# Restore original xorg.conf
-sudo cp /etc/X11/xorg.conf.backup-before-sunshine /etc/X11/xorg.conf
-
-# Remove kernel parameters from GRUB
-sudo nano /etc/default/grub
-# Remove: nvidia-drm.modeset=1 nvidia.NVreg_UsePageAttributeTable=1
-sudo update-grub
-
-# Disable autologin in GDM (optional)
-sudo nano /etc/gdm3/custom.conf
-# Set: AutomaticLoginEnable=false
-
-# Reboot
-sudo reboot
-```
+If issues occur, follow the [Rollback](README.md#rollback) steps in the README to restore the original configuration.
 
 ---
 
