@@ -85,7 +85,7 @@ sudo reboot
 cat /proc/cmdline | grep nvidia-drm.modeset
 
 # Verify modeset enabled (should output: Y)
-cat /sys/module/nvidia_drm/parameters/modeset
+sudo cat /sys/module/nvidia_drm/parameters/modeset
 
 # Check if Sunshine is running
 ps aux | grep sunshine
@@ -331,7 +331,7 @@ Fatal: Unable to find display or encoder during startup
 **Solution:**
 1. Verify DRM modeset is enabled:
    ```bash
-   cat /sys/module/nvidia_drm/parameters/modeset
+   sudo cat /sys/module/nvidia_drm/parameters/modeset
    ```
    Should output: `Y`
 

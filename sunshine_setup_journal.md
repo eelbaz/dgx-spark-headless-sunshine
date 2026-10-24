@@ -171,7 +171,7 @@ sudo reboot
 cat /proc/cmdline | grep nvidia-drm.modeset
 
 # Verify modeset enabled (should output: Y)
-cat /sys/module/nvidia_drm/parameters/modeset
+sudo cat /sys/module/nvidia_drm/parameters/modeset
 ```
 
 ### Step 5: Verify Sunshine Operation
