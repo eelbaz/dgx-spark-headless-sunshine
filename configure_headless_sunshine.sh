@@ -73,38 +73,10 @@ for asset in release["assets"]:
     exit 1
   }
 
-  # Install dependencies
-  echo "Installing Sunshine dependencies..."
+  # Install Sunshine; apt resolves the package's own runtime dependencies
+  echo "Installing Sunshine package and dependencies..."
   apt update -qq
-  apt install -y -qq \
-    libavcodec-dev \
-    libavformat-dev \
-    libavutil-dev \
-    libswscale-dev \
-    libevdev-dev \
-    libpulse-dev \
-    libopus-dev \
-    libxtst-dev \
-    libx11-dev \
-    libxrandr-dev \
-    libxfixes-dev \
-    libxcb1-dev \
-    libxcb-shm0-dev \
-    libxcb-xfixes0-dev \
-    libdrm-dev \
-    libcap-dev \
-    libudev-dev \
-    libwayland-dev \
-    libinput-dev \
-    libcurl4-openssl-dev \
-    libssl-dev 2>/dev/null || true
-
-  # Install Sunshine
-  echo "Installing Sunshine package..."
-  dpkg -i "${deb_file}" 2>/dev/null || {
-    echo "Fixing broken dependencies..."
-    apt --fix-broken install -y -qq
-  }
+  apt install -y -qq "${deb_file}"
 
   # Clean up
   rm -f "${deb_file}"
