@@ -12,6 +12,7 @@ This repository provides a complete, automated solution for configuring NVIDIA D
 ### What This Does
 
 - Installs Sunshine streaming server and all dependencies
+- Configures Sunshine for headless capture and remote access to its web UI
 - Configures NVIDIA DRM modesetting for proper GPU access
 - Sets up virtual display support for headless operation
 - Configures GDM and X11 for automatic login and display initialization
@@ -50,6 +51,7 @@ sudo ./configure_headless_sunshine.sh
 The script will:
 - Download and install the latest stable Sunshine release for your Ubuntu version (arm64)
 - Install all required system dependencies
+- Configure Sunshine (`~/.config/sunshine/sunshine.conf`): X11 capture and the web UI origins allowed for this host (see [Sunshine Configuration](#sunshine-configuration))
 - Configure GRUB kernel parameters for NVIDIA DRM modesetting
 - Set up Xorg with virtual display support
 - Configure GDM for X11 and autologin
@@ -421,6 +423,9 @@ sudo update-grub
 
 # Remove the autostart entry
 rm ~/.config/autostart/headless-xrandr.desktop
+
+# Optionally remove the settings the script added to Sunshine's config
+sed -i '/^capture = x11$/d; /^csrf_allowed_origins = /d' ~/.config/sunshine/sunshine.conf
 
 # Reboot
 sudo reboot
