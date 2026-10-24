@@ -179,7 +179,7 @@ EOF
 }
 
 configure_gdm() {
-  AUTLOGIN_USER="${TARGET_USER}" python3 - <<'PY'
+  AUTOLOGIN_USER="${TARGET_USER}" python3 - <<'PY'
 from pathlib import Path
 from configparser import ConfigParser
 import os
@@ -204,7 +204,7 @@ for key in list(daemon.keys()):
 daemon["WaylandEnable"] = "false"
 daemon["DefaultSession"] = "gnome-xorg.desktop"
 daemon["AutomaticLoginEnable"] = "true"
-daemon["AutomaticLogin"] = os.environ["AUTLOGIN_USER"]
+daemon["AutomaticLogin"] = os.environ["AUTOLOGIN_USER"]
 
 with path.open("w") as fh:
     parser.write(fh, space_around_delimiters=False)
